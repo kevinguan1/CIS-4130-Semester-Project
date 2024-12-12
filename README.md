@@ -1,6 +1,7 @@
 Big Data Clash Royale Battles
 
 My goal in this is to predict who will win the game based on the starting setup they have, which we’ll see in their starting setup by the eight cards and trophies they have.  
+
 I’ve chosen to do this dataset because this is a game I sometimes play, and I think it would be interesting to do for my semester project.
 
 The Kaggle set I chose was https://www.kaggle.com/datasets/s1m0n38/clash-royale-games/data. 

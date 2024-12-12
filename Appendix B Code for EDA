@@ -88,3 +88,118 @@ for blob in filtered_blobs:
     
     # Call your function to do the EDA
     perform_eda(df)
+
+—------------------------------------------------------------------------------------------------------------------
+
+Scatterplot
+
+# Import libraries
+from google.cloud import storage
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+from io import StringIO
+
+# Set Pandas options to always display floats with a decimal point
+# (not scientific notation)
+pd.set_option('display.float_format', '{:.2f}'.format)
+pd.set_option('display.width', 1000)
+
+
+
+#Source for the files
+source_bucket_name = "my-bigdata-project-kg"
+
+
+#Create a client object that points to GCS
+storage_client = storage.Client()
+
+# Define the folder pattern (your prefix)
+folder_pattern = "landing/"
+
+# Get a list of the blobs (objects or files) in the bucket
+blobs = storage_client.list_blobs(source_bucket_name, prefix=folder_pattern)
+
+# Filter for .csv files
+filtered_blobs = [blob for blob in blobs if blob.name.endswith('.csv')]
+
+# Print the number of filtered blobs
+print(f"Found {len(filtered_blobs)} CSV files.")
+
+total_files = len(filtered_blobs)
+
+
+# In[19]:
+
+
+# Column names and data types for reading CSV files
+column_names = ['datetime', 'gamemode', 'player1_tag', 'player1_trophies',
+                'player1_crowns', 'player1_card1', 'player1_card2',
+                'player1_card3', 'player1_card4', 'player1_card5',
+                'player1_card6', 'player1_card7', 'player1_card8',
+                'player2_tag', 'player2_trophies', 'player2_crowns',
+                'player2_card1', 'player2_card2', 'player2_card3',
+                'player2_card4', 'player2_card5', 'player2_card6',
+                'player2_card7', 'player2_card8']
+               
+data_types = {'datetime': 'string', 'gamemode': 'int64', 'player1_tag': 'string',
+              'player1_trophies': 'int32', 'player1_crowns': 'int32',
+              'player1_card1': 'int64', 'player1_card2': 'int64',
+              'player1_card3': 'int64', 'player1_card4': 'int64',
+              'player1_card5': 'int64', 'player1_card6': 'int64',
+              'player1_card7': 'int64', 'player1_card8': 'int64',
+              'player2_tag': 'string', 'player2_trophies': 'int32',
+              'player2_crowns': 'int32', 'player2_card1': 'int64',
+              'player2_card2': 'int64', 'player2_card3': 'int64',
+              'player2_card4': 'int64', 'player2_card5': 'int64',
+              'player2_card6': 'int64', 'player2_card7': 'int64',
+              'player2_card8': 'int64'}
+
+
+# Control how many files are read and how many to skip
+minimum_records = 30
+files_to_read = 10
+files_to_skip = 10
+files_read = 0
+
+player1_crowns_list = []
+player2_crowns_list = []
+player1_trophies_list = []
+player2_trophies_list = []
+
+# Iterate through the list of filtered blobs
+for blob in filtered_blobs:
+    files_read += 1
+    if files_read < files_to_skip:
+        continue
+    if files_read > (files_to_read+files_to_skip):
+        continue
+    print(f"Processing file {files_read}: {blob.name} with size {blob.size} bytes")
+   
+    # Read the CSV file with specified column names and data types
+    df = pd.read_csv(StringIO(blob.download_as_text()), names=column_names, dtype=data_types)
+    
+    # Convert the datetime column to an actual datetime data type
+    df['gametime'] = pd.to_datetime(df['datetime'], format='%Y%m%dT%H%M%S.%fZ')
+
+    # Capture the number of crowns and trophies for each player
+    player1_crowns_list = player1_crowns_list + df['player1_crowns'].to_list()
+    player2_crowns_list = player2_crowns_list + df['player2_crowns'].to_list()
+    player1_trophies_list = player1_trophies_list + df['player1_trophies'].to_list()
+    player2_trophies_list = player2_trophies_list + df['player2_trophies'].to_list()
+    
+    # Call your function to do the EDA
+
+print(f"Player 1 Crowns {len(player1_crowns_list)}")
+print(f"Player 2 Crowns {len(player2_crowns_list)}")
+print(f"Player 1 Trophies {len(player1_trophies_list)}")
+
+
+# Create a plot of the crowns
+# Set the style for Seaborn plots
+sns.set_style("white")
+# Create a Count plot
+cp = sns.countplot(x=player1_crowns_list)
+# Scatter plot
+sp = sns.scatterplot(x=player1_trophies_list, y=player2_trophies_list)
+

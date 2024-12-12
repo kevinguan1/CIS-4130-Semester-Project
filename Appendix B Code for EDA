@@ -1,0 +1,90 @@
+# Importing Libraries
+from google.cloud import storage
+from io import StringIO
+import pandas as pd
+
+# Source for the files
+source_bucket_name = "my-bigdata-project-kg"
+
+# Create a client object that points to GCS
+storage_client = storage.Client()
+
+# Define the folder pattern (your prefix)
+folder_pattern = "landing/"
+
+# Get a list of the blobs (objects or files) in the bucket
+blobs = storage_client.list_blobs(source_bucket_name, prefix=folder_pattern)
+
+# Filter for .csv files
+filtered_blobs = [blob for blob in blobs if blob.name.endswith('.csv')]
+
+# Print the number of filtered blobs
+print(f"Found {len(filtered_blobs)} CSV files.")
+
+# Column names and data types for reading CSV files
+column_names = ['datetime', 'gamemode', 'player1_tag', 'player1_trophies',
+                'player1_crowns', 'player1_card1', 'player1_card2',
+                'player1_card3', 'player1_card4', 'player1_card5',
+                'player1_card6', 'player1_card7', 'player1_card8',
+                'player2_tag', 'player2_trophies', 'player2_crowns',
+                'player2_card1', 'player2_card2', 'player2_card3',
+                'player2_card4', 'player2_card5', 'player2_card6',
+                'player2_card7', 'player2_card8']
+                
+data_types = {'datetime': 'string', 'gamemode': 'int64', 'player1_tag': 'string',
+              'player1_trophies': 'int32', 'player1_crowns': 'int32',
+              'player1_card1': 'int64', 'player1_card2': 'int64',
+              'player1_card3': 'int64', 'player1_card4': 'int64',
+              'player1_card5': 'int64', 'player1_card6': 'int64',
+              'player1_card7': 'int64', 'player1_card8': 'int64',
+              'player2_tag': 'string', 'player2_trophies': 'int32',
+              'player2_crowns': 'int32', 'player2_card1': 'int64',
+              'player2_card2': 'int64', 'player2_card3': 'int64',
+              'player2_card4': 'int64', 'player2_card5': 'int64',
+              'player2_card6': 'int64', 'player2_card7': 'int64',
+              'player2_card8': 'int64'}
+
+# Define the EDA function
+def perform_eda(df): 
+    print("Starting EDA...")
+    if df.empty:
+        print("DataFrame is empty. No EDA to perform.")
+        return
+    
+    # Number of observations
+    num_observations = df.shape[0]
+    print(f"Number of observations: {num_observations}") 
+    
+    # Number of missing fields 
+    missing_values = df.isnull().sum() 
+    print("Number of missing values in each field:")
+    print(missing_values[missing_values > 0]) 
+
+    # Summary statistics for numeric variables 
+    numeric_summary = df.describe(include='number') 
+    print("Summary statistics for numeric variables:") 
+    print(numeric_summary) 
+
+    # Summary for date variables 
+    date_columns = df.select_dtypes(include=['datetime', 'datetime64']).columns 
+    if date_columns.size > 0: 
+        for date_col in date_columns: 
+            min_date = df[date_col].min() 
+            max_date = df[date_col].max() 
+            print(f"Min date for {date_col}: {min_date}") 
+            print(f"Max date for {date_col}: {max_date}") 
+    else: 
+        print("No date variables found.")
+
+# Iterate through the list of filtered blobs
+for blob in filtered_blobs:
+    print(f"Processing file: {blob.name} with size {blob.size} bytes")
+    
+    # Read the CSV file with specified column names and data types
+    df = pd.read_csv(StringIO(blob.download_as_text()), names=column_names, dtype=data_types)
+    
+    # Convert the datetime column to an actual datetime data type
+    df['gametime'] = pd.to_datetime(df['datetime'], format='%Y%m%dT%H%M%S.%fZ')
+    
+    # Call your function to do the EDA
+    perform_eda(df)

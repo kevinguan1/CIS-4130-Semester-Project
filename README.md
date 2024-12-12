@@ -1,7 +1,23 @@
-CIS 4130 Big Data Technologies – Semester Project
+Big Data Clash Royale Battles
 
-For this semester-long project, students will build a complete machine learning pipeline that incorporates big data technologies using a cloud infrastructure.  The project is split into 6 milestones that will be due throughout the semester.  The project must be original (e.g., not copied from a previous semester, competition or other source). However, code examples can be referenced (proper citations required).
+My goal in this is to predict who will win the game based on the starting setup they have, which we’ll see in their starting setup by the eight cards and trophies they have.  
+I’ve chosen to do this dataset because this is a game I sometimes play, and I think it would be interesting to do for my semester project.
 
-To begin, create a Project Document in MS Word, Google Docs, etc. Create a cover page with CIS 4130, your name and e-mail address on it.  For each milestone, continue adding pages to this document throughout the semester.  For example, when turning in Milestone 3, include everything you wrote about in Milestones 1 and 2.
+The Kaggle set I chose was https://www.kaggle.com/datasets/s1m0n38/clash-royale-games/data. 
 
-Note: When writing Python or PySpark code, include a comment section at the start of your file or Notebook that includes your name , CIS 4130 and the current date.
+Data set attributes:
+- DateTime
+- trophies
+- crowns
+- list of 8 cards each of the players is using.
+
+
+Language used: PySpark, Python
+
+Libraries used: google.cloud, col, io, matplotlib.pyplot, pandas, numpy, pyspark.sql.types, Pipeline, StringIndexer, OneHotEncoder, VectorAssembler, RandomForestClassifier, CrossValidator, ParamGridBuilder, BinaryClassificationEvaluator, RegressionEvaluator, SparkSession, matplotlib, numpy, seaborn, when
+
+Summary:
+1. Data Acquisition: Used GCP tools to download a 92.59 GB Kaggle dataset into GCP buckets.
+2. Exploratory Data Analysis: Creating descriptive statistics using GCP
+3. Feature Engineering and Modeling: Creating a machine learning pipeline using a random forest classifier.
+4. Visualizing Results: Made visualizations of the prediction results on GCP.

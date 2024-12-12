@@ -1,0 +1,131 @@
+Feature Engineering
+
+
+
+from pyspark.ml import Pipeline
+from pyspark.ml.feature import StringIndexer, StandardScaler, VectorAssembler, OneHotEncoder
+from pyspark.sql.functions import col, when
+
+# Load data
+spark.conf.set("spark.sql.debug.maxToStringFields", "1000")
+data = spark.read.parquet("gs://my-project-bucket-clash/cleaned/")
+data.printSchema()
+data.count()
+
+# Take a small data sample just to try it out
+data = data.sample(False, 0.1, 42)
+
+# Create the target variable (1 if player 1 wins, 0 if player 2 wins)
+data = data.withColumn("label", when(col("player1_crowns") > col("player2_crowns"), 1.0).otherwise(0.0))
+data = data.withColumn("label", data.label.astype('double'))
+data.select(["player1_crowns", "player2_crowns", "label"]).show(10)
+data.printSchema()
+
+# Define columns for feature engineering
+columns_to_index = ["player1_card1", "player1_card2", "player1_card3", "player1_card4",
+                    "player1_card5", "player1_card6", "player1_card7", "player1_card8",
+                    "player2_card1", "player2_card2", "player2_card3", "player2_card4",
+                    "player2_card5", "player2_card6", "player2_card7", "player2_card8"]
+
+columns_to_encode = ["player1_card1_index", "player1_card2_index", "player1_card3_index", "player1_card4_index",
+                     "player1_card5_index", "player1_card6_index", "player1_card7_index", "player1_card8_index",
+                     "player2_card1_index", "player2_card2_index", "player2_card3_index", "player2_card4_index",
+                     "player2_card5_index", "player2_card6_index", "player2_card7_index", "player2_card8_index"]
+
+columns_to_vector = ["player1_card1_vector", "player1_card2_vector", "player1_card3_vector", "player1_card4_vector",
+                     "player1_card5_vector", "player1_card6_vector", "player1_card7_vector", "player1_card8_vector",
+                     "player2_card1_vector", "player2_card2_vector", "player2_card3_vector", "player2_card4_vector",
+                     "player2_card5_vector", "player2_card6_vector", "player2_card7_vector", "player2_card8_vector"]
+
+# Feature engineering pipeline
+indexer = StringIndexer(inputCols=columns_to_index, outputCols=columns_to_encode)
+encoder = OneHotEncoder(inputCols=columns_to_encode, outputCols=columns_to_vector, dropLast=False)
+assembler = VectorAssembler(inputCols=columns_to_vector, outputCol="features")
+scaler = StandardScaler(inputCol="features", outputCol="scaledFeatures", withMean=True, withStd=True)
+
+clash_pipe = Pipeline(stages=[indexer, encoder, assembler, scaler])
+
+# Fit the pipeline and transform the data
+pipeline_model = clash_pipe.fit(data)
+transformed_sdf = pipeline_model.transform(data)
+
+# Review the transformed features
+transformed_sdf.select("player1_card1", "player1_card2", 'label', 'features').show(30, truncate=False)
+
+# write the transformed DataFrame
+transformed_sdf.write.mode("overwrite").parquet("gs://my-bigdata-project-kg/trusted/data_with_features")
+
+
+
+MODELING
+
+
+
+from pyspark.ml.classification import RandomForestClassifier
+from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
+from pyspark.ml.evaluation import BinaryClassificationEvaluator
+from pyspark.sql.functions import col
+
+spark.conf.set("spark.sql.debug.maxToStringFields", "3000")
+
+# Reload the transformed feature-engineered data
+transformed_sdf = spark.read.parquet("gs://my-project-bucket-clash/trusted/data_with_features_10M_Sample_20241120")
+
+# Split the data into training and testing sets
+train_data, test_data = transformed_sdf.randomSplit([0.8, 0.2], seed=42)
+
+# Define the Random Forest classifier
+rf = RandomForestClassifier(featuresCol="features", labelCol="label", maxBins=2048)
+
+# Create the parameter grid for hyperparameter tuning
+param_grid = (ParamGridBuilder()
+              .build())
+
+# Create the evaluator (using AUC for binary classification)
+evaluator = BinaryClassificationEvaluator(labelCol="label", metricName="areaUnderROC")
+
+# Create the CrossValidator for hyperparameter tuning and cross-validation
+cv = CrossValidator(estimator=rf,
+                    estimatorParamMaps=param_grid,
+                    evaluator=evaluator,
+                    numFolds=3)
+
+# Train the models using CrossValidator
+cv_model = cv.fit(train_data)
+
+# Make predictions on the test data
+predictions = cv_model.transform(test_data)
+
+# Evaluate the model using AUC (Area Under ROC)
+auc = evaluator.evaluate(predictions)
+print(f"Area Under ROC (AUC) on test data = {auc:.4f}")
+
+# Manually calculate Precision, Recall, F1, and Accuracy using predictions DataFrame
+
+# Count the TP, FP, FN, TN
+tp = predictions.filter((col("prediction") == 1) & (col("label") == 1)).count()  # True Positives
+fp = predictions.filter((col("prediction") == 1) & (col("label") == 0)).count()  # False Positives
+fn = predictions.filter((col("prediction") == 0) & (col("label") == 1)).count()  # False Negatives
+tn = predictions.filter((col("prediction") == 0) & (col("label") == 0)).count()  # True Negatives
+
+# Calculate Precision, Recall, F1 Score, and Accuracy
+precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+accuracy = (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) > 0 else 0
+
+# Print the manually calculated metrics
+print(f"Precision: {precision:.4f}")
+print(f"Recall: {recall:.4f}")
+print(f"F1 Score: {f1_score:.4f}")
+print(f"Accuracy: {accuracy:.4f}")
+
+# Save the best model
+model_path = "gs://my-bigdata-project-kg/models/best_random_classifier_model"
+cv_model.bestModel.write().overwrite().save(model_path)
+
+# Display a sample of predictions
+predictions.select("player1_card1", "player1_card2", "label", "prediction", "probability").show(20, truncate=False)
+
+# Stop the Spark session
+spark.stop()

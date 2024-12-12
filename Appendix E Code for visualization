@@ -1,0 +1,196 @@
+Lift Curve Visualization
+
+from pyspark.sql import SparkSession
+from sklearn.metrics import precision_recall_curve
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Initialize Spark session
+spark = SparkSession.builder.appName("Visualization").getOrCreate()
+
+# Load data
+data_path = "gs://my-bigdata-project-kg/models/best_random_classifier_model/data"
+transformed_sdf = spark.read.parquet(data_path)
+
+# Inspect the schema
+transformed_sdf.printSchema()
+
+# Extract prediction and synthesize labels
+transformed_sdf = transformed_sdf.selectExpr("nodeData.prediction as probability", "1 as label")
+
+# Verify extracted columns
+transformed_sdf.show(5, truncate=False)
+
+# Extract prediction and true label for further processing
+preds_labels = transformed_sdf.select("probability", "label").rdd.map(
+    lambda row: (float(row[0]), float(row[1]))
+).collect()
+
+# Unzip the data into two lists: y_score (predicted probabilities) and y_true (true labels)
+y_score, y_true = zip(*preds_labels)
+
+# Compute Precision-Recall curve
+precision, recall, _ = precision_recall_curve(y_true, y_score)
+
+# Calculate lift
+lift = precision / recall
+
+# Plot Lift Curve
+plt.figure(figsize=(8, 6))
+plt.plot(recall, lift, label="Lift Curve", color='orange')
+plt.xlabel("Recall")
+plt.ylabel("Lift")
+plt.title("Lift Curve")
+plt.legend(loc="lower left")
+plt.show()
+
+
+Precision-Recall Curve Visualization
+
+from pyspark.sql import SparkSession
+from sklearn.metrics import precision_recall_curve
+import matplotlib.pyplot as plt
+
+# Initialize Spark session
+spark = SparkSession.builder.appName("Visualization").getOrCreate()
+
+# Load data
+data_path = "gs://my-bigdata-project-kg/models/best_random_classifier_model/data"
+transformed_sdf = spark.read.parquet(data_path)
+
+# Inspect the schema
+transformed_sdf.printSchema()
+
+# Extract prediction and synthesize labels
+transformed_sdf = transformed_sdf.selectExpr("nodeData.prediction as probability", "1 as label")
+
+# Verify extracted columns
+transformed_sdf.show(5, truncate=False)
+
+# Extract prediction and true label for further processing
+preds_labels = transformed_sdf.select("probability", "label").rdd.map(
+    lambda row: (float(row[0]), float(row[1]))
+).collect()
+
+# Unzip the data into two lists: y_score (predicted probabilities) and y_true (true labels)
+y_score, y_true = zip(*preds_labels)
+
+# Compute Precision-Recall curve
+precision, recall, _ = precision_recall_curve(y_true, y_score)
+
+# Plot Precision-Recall curve
+plt.figure(figsize=(8, 6))
+plt.plot(recall, precision, label="Precision-Recall Curve")
+plt.xlabel("Recall")
+plt.ylabel("Precision")
+plt.title("Precision-Recall Curve")
+plt.legend(loc="lower left")
+plt.grid(True)
+plt.show()
+
+
+
+Confusion Matrix Visualization
+
+from pyspark.sql import SparkSession
+from sklearn.metrics import confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Reload the transformed feature-engineered data
+transformed_sdf = spark.read.parquet("gs://my-project-bucket-clash/trusted/data_with_features_10M_Sample_20241120")
+
+# Split the data into training and testing sets
+train_data, test_data = transformed_sdf.randomSplit([0.8, 0.2], seed=42)
+
+# Define the Random Forest classifier
+rf = RandomForestClassifier(featuresCol="features", labelCol="label", maxBins=2048)
+
+# Create the parameter grid for hyperparameter tuning
+param_grid = (ParamGridBuilder()
+              .build())
+
+# Create the evaluator (using AUC for binary classification)
+evaluator = BinaryClassificationEvaluator(labelCol="label", metricName="areaUnderROC")
+
+# Create the CrossValidator for hyperparameter tuning and cross-validation
+cv = CrossValidator(estimator=rf,
+                    estimatorParamMaps=param_grid,
+                    evaluator=evaluator,
+                    numFolds=3)
+
+# Train the models using CrossValidator
+cv_model = cv.fit(train_data)
+
+# Make predictions on the test data
+predictions = cv_model.transform(test_data)
+
+
+
+Now we can capture the confusion matrix:
+
+
+# Use the predictions to calculate the confusion matrix
+cm = predictions.groupby('label').pivot('prediction').count().fillna(0).sort('label').collect()
+
+# Copy the numeric elements of the confusion matrix to cm2
+cm2 = [[0 for i in range(2)] for j in range(2)]
+print(cm[0])
+print(cm[1])
+cm2[0][0] = cm[0][1]
+cm2[0][1] = cm[0][2]
+cm2[1][0] = cm[1][1]
+cm2[1][1] = cm[1][2]
+print(cm2)
+
+# Plot the confusion matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
+# Plot Confusion Matrix
+plt.figure(figsize=(8, 6))
+sns.heatmap(cm2, annot=True, fmt='g', cmap="Blues", xticklabels=["Negative", "Positive"],
+yticklabels=["Negative", "Positive"])
+plt.xlabel("Predicted")
+plt.ylabel("True")
+plt.title("Confusion Matrix")
+
+lt.ylabel("True")
+plt.title("Confusion Matrix")
+plt.show()
+
+ROC Curve
+
+from pyspark.sql import SparkSession
+from sklearn.metrics import roc_curve
+import matplotlib.pyplot as plt
+
+# Initialize Spark session
+spark = SparkSession.builder.appName("Visualization").getOrCreate()
+
+# Load data
+data_path = "gs://my-bigdata-project-kg/models/best_random_classifier_model/data"
+transformed_sdf = spark.read.parquet(data_path)
+
+# Extract prediction and synthesize labels
+transformed_sdf = transformed_sdf.selectExpr("nodeData.prediction as probability", "1 as label")
+
+# Verify extracted columns
+transformed_sdf.show(5, truncate=False)
+
+# Extract prediction and true label
+preds_labels = transformed_sdf.select("probability", "label").rdd.map(
+    lambda row: (float(row[0]), float(row[1]))
+).collect()
+
+# Grab the Best model
+mymodel = cv_model.bestModel
+
+import matplotlib.pyplot as plt
+plt.figure(figsize=(5,5))
+plt.plot(mymodel.summary.roc.select('FPR').collect(),
+         mymodel.summary.roc.select('TPR').collect())
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title("ROC Curve")
+
+plt.show()

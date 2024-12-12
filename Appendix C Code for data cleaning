@@ -1,0 +1,65 @@
+# Importing Libraries
+from google.cloud import storage
+from io import StringIO
+import pandas as pd
+
+# Source for the files
+source_bucket_name = "my-bigdata-project-kg"
+
+# Create a client object that points to GCS
+storage_client = storage.Client()
+
+# Get a list of the 'blobs' (objects or files) in the bucket
+blobs = storage_client.list_blobs(source_bucket_name, prefix="landing")
+
+# Define the column names and data types for reading CSV files
+column_names = ['datetime', 'gamemode', 'player1_tag', 'player1_trophies',
+                'player1_crowns', 'player1_card1', 'player1_card2',
+                'player1_card3', 'player1_card4', 'player1_card5',
+                'player1_card6', 'player1_card7', 'player1_card8',
+                'player2_tag', 'player2_trophies', 'player2_crowns',
+                'player2_card1', 'player2_card2', 'player2_card3',
+                'player2_card4', 'player2_card5', 'player2_card6',
+                'player2_card7', 'player2_card8']
+                
+data_types = {'datetime': 'string', 'gamemode': 'int64', 'player1_tag': 'string',
+              'player1_trophies': 'int32', 'player1_crowns': 'int32',
+              'player1_card1': 'int64', 'player1_card2': 'int64',
+              'player1_card3': 'int64', 'player1_card4': 'int64',
+              'player1_card5': 'int64', 'player1_card6': 'int64',
+              'player1_card7': 'int64', 'player1_card8': 'int64',
+              'player2_tag': 'string', 'player2_trophies': 'int32',
+              'player2_crowns': 'int32', 'player2_card1': 'int64',
+              'player2_card2': 'int64', 'player2_card3': 'int64',
+              'player2_card4': 'int64', 'player2_card5': 'int64',
+              'player2_card6': 'int64', 'player2_card7': 'int64',
+              'player2_card8': 'int64'}
+
+# Data cleaning function
+def clean_data(df):
+    # Fill nulls or remove records with nulls
+    df = df.fillna(value={"column_name": "default_value"})  
+    df = df.dropna()  
+    return df
+
+# A for loop to go through all of the blobs and process each CSV file
+for blob in blobs:
+    if blob.name.endswith('.csv'):
+        print(f"Processing file: {blob.name}")
+        
+        # Read the CSV content into a DataFrame with specified schema
+        df = pd.read_csv(StringIO(blob.download_as_text()), names=column_names, dtype=data_types)
+        
+        # Convert the datetime column to an actual datetime data type
+        df['gametime'] = pd.to_datetime(df['datetime'], format='%Y%m%dT%H%M%S.%fZ')
+        
+        # Print DataFrame info 
+        df.info()
+
+        # Clean the data by calling the clean_data function
+        df = clean_data(df)
+
+        # Writing the cleaned DataFrame to the cleaned folder as a Parquet file
+        cleaned_file_path = f"gs://{source_bucket_name}/cleaned/{blob.name.split('/')[-1].replace('.csv', '.parquet')}"
+        df.to_parquet(cleaned_file_path, index=False)
+        print(f"Cleaned data written to: {cleaned_file_path}")

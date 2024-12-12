@@ -1,0 +1,26 @@
+#Downloading Kaggle Data Sets using the Linux Command Line:
+mkdir .kaggle
+#Uploading my kaggle.json file
+Ls -la
+#Move the kaggle.json file to the .kaggle directory using the command:
+mv kaggle.json .kaggle/
+#Securing the file:
+chmod 600 .kaggle/kaggle.json
+#Software packages and set up a Python development environment:
+sudo apt -y install zip
+sudo apt -y install python3-pip python3.11-venv
+python3 -m venv pythondev
+cd pythondev
+source bin/activate
+pip3 install kaggle
+kaggle datasets list
+#Downloading Datasets from Kaggle
+kaggle datasets download -d s1m0n38/clash-royale-games
+#Unzipping the Archive file to get the individual data files
+unzip clash-royale-games.zip
+#Creating a bucket
+gcloud storage buckets create gs://my-bigdata-project-kg --project=kevin2003 --default-storage-class=STANDARD --location=us-central1 --uniform-bucket-level-accessz
+#Granting permission
+gcloud auth login 
+#Once I created the bucket, I copied files from the local file system into the new bucket:
+gsutil cp -r * gs://my-bigdata-project-kg/landing/
